@@ -34,6 +34,7 @@ class Helpers
             'db_backup' => true,
             'db_backup_count' => 3,
             'load_media_from_remote' => true,
+            'update_domains_urls' => true,
             'additional_search_replace' => [],
             'verbose' => false,
         ];
