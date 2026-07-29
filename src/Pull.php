@@ -303,10 +303,10 @@ class Pull
             // Remove temporary sync file
             unlink($db_sync_file);
 
-            // Search and replace domains
-            \WP_CLI::log(\WP_CLI::colorize('%C•%n Updating domains and URLs...'));
+            if (isset($config['search_replace_urls']) && $config['search_replace_urls'] === true) {
+                // Search and replace domains
+                \WP_CLI::log(\WP_CLI::colorize('%C•%n Search-replacing URLs...'));
 
-            if (isset($config['update_domains_urls']) && $config['update_domains_urls'] === true) {
                 // Check if this is a multisite installation
                 if (\WpSync\Helpers::isMultisite('', $skip_flag)) {
                     \WP_CLI::log(\WP_CLI::colorize('%C•%n %MMultisite%n installation detected, using network-aware search-replace'));

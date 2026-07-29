@@ -289,9 +289,9 @@ class Push
             // Remove temporary sync file
             unlink($db_sync_file);
 
-            if (isset($config['update_domains_urls']) && $config['update_domains_urls'] === true) {
+            if (isset($config['search_replace_urls']) && $config['search_replace_urls'] === true) {
                 // Search and replace domains
-                \WP_CLI::log('• Updating domains and URLs...');
+                \WP_CLI::log('• Search-replacing URLs...');
 
                 // Check if this is a multisite installation
                 if (\WpSync\Helpers::isMultisite($ssh_flag, $skip_flag)) {
