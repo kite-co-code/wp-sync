@@ -119,14 +119,12 @@ It also keeps server details out of `wp-sync.yml`, so the file is safe to commit
 
 ```yaml
 staging:
-  host: user@staging-server-ip   # user@ optional
-  port: 22                       # optional
+  host: user@staging-server-ip
+  port: 22   # optional
   path: /path/to/wordpress
 ```
 
 Don't fold `port` into `host` (e.g. `user@host:2222`) — an embedded `:port` breaks file transfers. Set it as a separate `port` key. `path` (the remote WordPress root) is always required.
-
-> **Deprecated:** the separate `user` key still works but emits a warning — use `host: user@host` instead. When the SSH user is `root`, wp-sync automatically adds `--allow-root` to remote WP-CLI calls.
 
 ## Commands
 ### Pull
