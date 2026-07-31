@@ -289,23 +289,25 @@ class Push
             // Remove temporary sync file
             unlink($db_sync_file);
 
-            // Search and replace domains
-            \WP_CLI::log('• Updating domains and URLs...');
+            if (isset($config['search_replace_urls']) && $config['search_replace_urls'] === true) {
+                // Search and replace domains
+                \WP_CLI::log('• Search-replacing URLs...');
 
-            // Check if this is a multisite installation
-            if (\WpSync\Helpers::isMultisite($ssh_flag, $skip_flag)) {
-                \WP_CLI::log('• Multisite installation detected, using network-aware search-replace');
-                \WpSync\Helpers::performMultisiteSearchReplace($local_domain, $remote_domain, $config, $ssh_flag, $skip_flag);
-            } else {
-                \WP_CLI::runcommand("$ssh_flag option update home '$remote_domain' $skip_flag");
-                \WP_CLI::runcommand("$ssh_flag option update siteurl '$remote_domain' $skip_flag");
-                $quiet_flag = !empty($config['verbose']) ? '' : '--quiet';
-                \WP_CLI::runcommand("$ssh_flag search-replace $local_domain $remote_domain --all-tables $quiet_flag $skip_flag");
+                // Check if this is a multisite installation
+                if (\WpSync\Helpers::isMultisite($ssh_flag, $skip_flag)) {
+                    \WP_CLI::log('• Multisite installation detected, using network-aware search-replace');
+                    \WpSync\Helpers::performMultisiteSearchReplace($local_domain, $remote_domain, $config, $ssh_flag, $skip_flag);
+                } else {
+                    \WP_CLI::runcommand("$ssh_flag option update home '$remote_domain' $skip_flag");
+                    \WP_CLI::runcommand("$ssh_flag option update siteurl '$remote_domain' $skip_flag");
+                    $quiet_flag = !empty($config['verbose']) ? '' : '--quiet';
+                    \WP_CLI::runcommand("$ssh_flag search-replace $local_domain $remote_domain --all-tables $quiet_flag $skip_flag");
 
-                // Process additional search-replace operations for single site
-                \WpSync\Helpers::processAdditionalSearchReplace($config, $ssh_flag ? "$ssh_flag " : '', $skip_flag);
+                    // Process additional search-replace operations for single site
+                    \WpSync\Helpers::processAdditionalSearchReplace($config, $ssh_flag ? "$ssh_flag " : '', $skip_flag);
+                }
+                \WP_CLI::log('');
             }
-            \WP_CLI::log('');
         }
 
         // TODO set up custom search and replace

@@ -303,23 +303,25 @@ class Pull
             // Remove temporary sync file
             unlink($db_sync_file);
 
-            // Search and replace domains
-            \WP_CLI::log(\WP_CLI::colorize('%C•%n Updating domains and URLs...'));
+            if (isset($config['search_replace_urls']) && $config['search_replace_urls'] === true) {
+                // Search and replace domains
+                \WP_CLI::log(\WP_CLI::colorize('%C•%n Search-replacing URLs...'));
 
-            // Check if this is a multisite installation
-            if (\WpSync\Helpers::isMultisite('', $skip_flag)) {
-                \WP_CLI::log(\WP_CLI::colorize('%C•%n %MMultisite%n installation detected, using network-aware search-replace'));
-                \WpSync\Helpers::performMultisiteSearchReplace($remote_domain, $local_domain, $config, '', $skip_flag);
-            } else {
-                \WP_CLI::runcommand("$skip_flag option update home '$local_domain' $skip_flag");
-                \WP_CLI::runcommand("$skip_flag option update siteurl '$local_domain' $skip_flag");
-                $quiet_flag = !empty($config['verbose']) ? '' : '--quiet';
-                \WP_CLI::runcommand("$skip_flag search-replace $remote_domain $local_domain --all-tables $quiet_flag $skip_flag");
+                // Check if this is a multisite installation
+                if (\WpSync\Helpers::isMultisite('', $skip_flag)) {
+                    \WP_CLI::log(\WP_CLI::colorize('%C•%n %MMultisite%n installation detected, using network-aware search-replace'));
+                    \WpSync\Helpers::performMultisiteSearchReplace($remote_domain, $local_domain, $config, '', $skip_flag);
+                } else {
+                    \WP_CLI::runcommand("$skip_flag option update home '$local_domain' $skip_flag");
+                    \WP_CLI::runcommand("$skip_flag option update siteurl '$local_domain' $skip_flag");
+                    $quiet_flag = !empty($config['verbose']) ? '' : '--quiet';
+                    \WP_CLI::runcommand("$skip_flag search-replace $remote_domain $local_domain --all-tables $quiet_flag $skip_flag");
 
-                // Process additional search-replace operations for single site
-                \WpSync\Helpers::processAdditionalSearchReplace($config, '', $skip_flag);
-            }
-            \WP_CLI::log('');
+                    // Process additional search-replace operations for single site
+                    \WpSync\Helpers::processAdditionalSearchReplace($config, '', $skip_flag);
+                }
+                \WP_CLI::log('');
+            } 
         }
 
         // TODO set up custom search and replace

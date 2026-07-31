@@ -56,6 +56,11 @@ pull:
   db_backup: true
   db_backup_count: 3
   load_media_from_remote: true
+  search_replace_urls: true
+  # Extra replacements, run straight after the domain replacement:
+  # additional_search_replace:
+  #   - search: "shop.example.com"
+  #     replace: "shop.example.test"
 
 push:
   db: false
@@ -65,6 +70,7 @@ push:
   db_backup: true
   db_backup_count: 3
   load_media_from_remote: false
+  search_replace_urls: true
 
 environments:
   local:
@@ -150,6 +156,8 @@ This command is used in the same way as the pull command, but synchronizes **fro
 - `db_backup`: Back up the database that is about to be overwritten before synchronizing. See [Database Backups](#database-backups). Default: true.
 - `db_backup_count`: Number of backups to keep per environment. Older backups are pruned automatically. Default: 3.
 - `load_media_from_remote`: Load media from the remote environment when synchronizing the database (using [be-media-from-production](https://github.com/billerickson/BE-Media-from-Production)). Default: true.
+- `search_replace_urls`: Detect the source and destination domains and search-replace them after a database sync. Set to false to handle domains yourself in an `after_pull` / `after_push` hook. Default: true.
+- `additional_search_replace`: A list of extra `search` / `replace` pairs to run straight after the domain replacement. Requires `search_replace_urls` to be true. See [WordPress Multisite](#wordpress-multisite). Default: none.
 - `yes`: Skip the confirmation prompt and run non-interactively. Useful for scripting, e.g. `wp sync pull production --yes && composer install && npm run build`. Default: false.
 
 ### Database Backups
@@ -199,30 +207,35 @@ environments:
 - **Shell commands**: Any other commands are executed as shell commands
 - **Remote execution**: Commands automatically run on remote server when using SSH
 
-## WordPress Multisite Support
+## WordPress Multisite
 
-Multisite networks are detected automatically and handled without extra configuration:
+Multisite networks are detected automatically. Both subdomain and subdirectory networks are supported.
 
-- Runs search-replace network-wide (`--network`), updating the `DOMAIN_CURRENT_SITE` constant and each site's domain in the database.
-- Network-activates BE Media from Production and configures media loading per site.
-- Works with both subdomain and subdirectory networks.
+### Setup
 
-Example config:
+Your local wp-config.php needs the usual multisite constants (`MULTISITE`, `SUBDOMAIN_INSTALL`, `DOMAIN_CURRENT_SITE` and friends) before wp-sync will treat the site as a network — it reads them to decide how to rewrite domains.
+
+Subsites follow the main site. On a **subdomain network** `shop.example.com` becomes `shop.example.test`; on a **subdirectory network** every site shares the main domain, so there's nothing extra to do.
+
+**Mapped domains aren't replaced.** If subsites run on their own domains rather than subdomains of the main site, only the main domain is handled. Add the others with `additional_search_replace`, which runs network-wide straight after the main replacement:
+
 ```yaml
 pull:
-  db: true
-  plugins: true
-  after_pull:
-    # Network-wide search replace
-    - "wp search-replace 'staging.example.com' 'local.example.com' --network"
-    # Flush cache on all sites
-    - "wp site list --field=url --format=csv | xargs -I {} wp --url={} cache flush"
+  additional_search_replace:
+    - search: "shop.example.com"
+      replace: "shop.example.test"
+```
 
-environments:
-  staging:
-    host: staging.example.com
-    path: /var/www/html
-    url: https://staging.example.com
+### Replacing domains yourself
+
+Set `search_replace_urls: false` to skip domain replacement entirely — including `additional_search_replace` — and handle it in a hook instead:
+
+```yaml
+pull:
+  search_replace_urls: false
+  after_pull:
+    - "wp search-replace 'www.example.com' 'example.test' --network --all-tables"
+    - "wp site list --field=url --format=csv | xargs -I {} wp --url={} cache flush"
 ```
 
 ## Contributing

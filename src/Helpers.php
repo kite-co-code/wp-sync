@@ -34,6 +34,7 @@ class Helpers
             'db_backup' => true,
             'db_backup_count' => 3,
             'load_media_from_remote' => true,
+            'search_replace_urls' => true,
             'additional_search_replace' => [],
             'verbose' => false,
         ];
@@ -111,6 +112,19 @@ class Helpers
         }
     }
 
+    /**
+     * Reduce a URL to its bare host (no scheme, no trailing slash).
+     *
+     * Multisite stores bare hosts in wp_blogs.domain and wp_site.domain, so search-replace
+     * has to run on the host rather than the full URL for the network tables to be updated.
+     * A `www.` prefix is deliberately kept: it is part of the host, and treating
+     * `www.example.org` as `example.org` only ever rewrites it to `www.<new host>`.
+     */
+    public static function domainHost(string $url): string
+    {
+        return preg_replace('#^https?://#', '', rtrim(trim($url), '/'));
+    }
+
     public static function performMultisiteSearchReplace(string $old_domain, string $new_domain, array $config = [], string $ssh_flag = '', string $skip_flag = '--skip-plugins --skip-themes')
     {
         $command_prefix = $ssh_flag ? "$ssh_flag " : '';
@@ -119,20 +133,43 @@ class Helpers
 
         \WP_CLI::log('- Multisite network detected, performing search-replace');
 
-        $old_domain_stripped = preg_replace('#^https?://(www\.)?#', '', rtrim($old_domain, '/'));
-        $new_domain_stripped = preg_replace('#^https?://(www\.)?#', '', rtrim($new_domain, '/'));
+        $old_host = self::domainHost($old_domain);
+        $new_host = self::domainHost($new_domain);
 
-        \WP_CLI::log("- Network search-replace: '$old_domain_stripped' -> '$new_domain_stripped'");
-        \WP_CLI::runcommand($command_prefix . "search-replace '$old_domain_stripped' '$new_domain_stripped' --network --all-tables $quiet_flag $skip_flag");
+        // Subsites only have hosts of their own on subdomain networks; on subdirectory
+        // networks every site shares the main site's host, so the host pass covers everything.
+        $is_subdomain_install = self::isSubdomainInstall($ssh_flag, $skip_flag);
+        $old_base = preg_replace('#^www\.#', '', $old_host);
+        $new_base = preg_replace('#^www\.#', '', $new_host);
 
-        // Update network constants
+        if ($is_subdomain_install && $old_base === $old_host && $new_base !== $new_host) {
+            // Source host has no `www.` but the target does, so the host pass below will
+            // suffix-match into every subsite host (a.example.org -> a.www.example.test).
+            // There is no safe automatic fix — the correct subsite hosts aren't derivable.
+            \WP_CLI::warning("'$new_host' has a 'www.' prefix that '$old_host' does not. Subsite domains will need correcting via additional_search_replace or an after_pull/after_push hook.");
+        }
+
+        // Pass 1: the exact host. Covers `https://<host>` occurrences in options and postmeta
+        // as well as the bare host stored in wp_blogs / wp_site.
+        \WP_CLI::log("- Network search-replace: '$old_host' -> '$new_host'");
+        \WP_CLI::runcommand($command_prefix . "search-replace '$old_host' '$new_host' --network --all-tables $quiet_flag $skip_flag");
+
+        // Pass 2: subsite hosts on a `www.` main site. Only needed when the host pass left a
+        // base domain behind, and only safe because it runs second — by now no occurrence of
+        // the main site host remains, so this can only match genuine subsites.
+        if ($is_subdomain_install && $old_base !== $old_host) {
+            \WP_CLI::log("- Subsite search-replace: '$old_base' -> '$new_base'");
+            \WP_CLI::runcommand($command_prefix . "search-replace '$old_base' '$new_base' --network --all-tables $quiet_flag $skip_flag");
+        }
+
+        // wp-config's DOMAIN_CURRENT_SITE has to agree with the main site host now in the
+        // database, or every subsequent wp command fails with "Site not found". Report a
+        // mismatch rather than rewriting wp-config as a side effect of a sync.
         $network_domain_cmd = $command_prefix . "config get DOMAIN_CURRENT_SITE $skip_flag";
-        $network_domain = \WP_CLI::runcommand($network_domain_cmd, ['return' => true, 'exit_error' => false]);
+        $network_domain = trim((string) \WP_CLI::runcommand($network_domain_cmd, ['return' => true, 'exit_error' => false]));
 
-        if ($network_domain && strpos($network_domain, $old_domain) !== false) {
-            $new_network_domain = str_replace($old_domain, $new_domain, $network_domain);
-            \WP_CLI::runcommand($command_prefix . "config set DOMAIN_CURRENT_SITE '$new_network_domain' --type=constant $skip_flag");
-            \WP_CLI::log("- Updated DOMAIN_CURRENT_SITE: $network_domain -> $new_network_domain");
+        if ($network_domain !== '' && $network_domain !== $new_host) {
+            \WP_CLI::warning("DOMAIN_CURRENT_SITE is '$network_domain' but the database now uses '$new_host'. Update the constant in wp-config.php, or set this environment's `url` to match.");
         }
 
         // Process additional search-replace operations for multisite
@@ -148,6 +185,15 @@ class Helpers
         $is_multisite = \WP_CLI::runcommand($is_multisite_cmd, ['return' => true, 'exit_error' => false]);
 
         return $is_multisite === '1';
+    }
+
+    public static function isSubdomainInstall(string $ssh_flag = '', string $skip_flag = '--skip-plugins --skip-themes'): bool
+    {
+        $command_prefix = $ssh_flag ? "$ssh_flag " : '';
+        $subdomain_install_cmd = $command_prefix . "config get SUBDOMAIN_INSTALL $skip_flag";
+        $subdomain_install = \WP_CLI::runcommand($subdomain_install_cmd, ['return' => true, 'exit_error' => false]);
+
+        return trim((string) $subdomain_install) === '1';
     }
 
     /**

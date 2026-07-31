@@ -1,3 +1,27 @@
+## [v1.0.0] - 2026-07-29
+
+### Added
+- `--yes` flag on `pull`/`push` to skip the confirmation prompt and run non-interactively.
+- `search_replace_urls` option (default `true`) to make automatic domain/URL search-replace optional.
+- `db_backup_count` option (default 3) to control how many backups are kept per environment; older ones are pruned.
+- Support for SSH config aliases as `host` in push/pull config.
+- Collation remapping on sync: unsupported collations in a dump (e.g. MariaDB UCA-1400) are rewritten to a fallback the destination supports.
+- `--allow-root` added automatically when the SSH user is `root`.
+- Full option documentation and examples in `wp sync pull|push --help`.
+
+### Changed
+- Backups are always written locally to `wp-content/wp-sync-backups` (blocked from web access), including for remote sources — nothing is left on the remote server.
+- `update_domains_urls` renamed to `search_replace_urls`.
+- `backup_count` renamed to `db_backup_count`, default raised from 2 to 3.
+- Multisite `DOMAIN_CURRENT_SITE` mismatches now warn instead of rewriting `wp-config.php` during a sync.
+- Readme and `wp-sync.example.yml` rewritten with clearer connection and multisite guidance.
+
+### Fixed
+- Multisite search-replace no longer mangles subsite hosts when `www.` differs between environments: replacement now runs on the bare host (preserving `www.`), with a second base-domain pass for subdomain networks, and warns when subsite domains need manual correction.
+- Dropped `--all-tablespaces` from db export, which caused PROCESS privilege errors.
+- Push db sync routes through a local temp file so dumps can be sanitised before import.
+- mu-plugins are now included in push file sync.
+
 ## [v0.9.0] - 2025-09-19
 
 ### Fixed
