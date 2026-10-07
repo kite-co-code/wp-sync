@@ -42,6 +42,8 @@ Requires [WP-CLI](https://make.wordpress.org/cli/handbook/guides/installing/) an
 wp package install https://github.com/kite-co-code/wp-sync.git
 ```
 
+The package is also on [Packagist](https://packagist.org/packages/kite-co/wp-sync) as `kite-co/wp-sync`, but installing by name (`wp package install kite-co/wp-sync`) doesn't work in WP-CLI 2.12 or earlier. Use the git URL above until a newer WP-CLI release fixes this.
+
 ## Configuration
 Your `wp-sync.yml` holds the settings for each command and the connection details for each environment. Run `wp sync` commands from the directory that contains it — your WordPress root or a theme.
 
