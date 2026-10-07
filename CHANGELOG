@@ -4,7 +4,7 @@
 - Repository moved to [kite-co-code/wp-sync](https://github.com/kite-co-code/wp-sync) and the package renamed from `jerometoole/wp-sync` to `kite-co/wp-sync`, now published on [Packagist](https://packagist.org/packages/kite-co/wp-sync). Existing installs must reinstall, as `wp package update` won't pick up the new name:
   ```bash
   wp package uninstall jerometoole/wp-sync
-  wp package install kite-co/wp-sync
+  wp package install https://github.com/kite-co-code/wp-sync.git
   ```
 
 ## [v1.0.0] - 2026-07-29

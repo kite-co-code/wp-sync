@@ -9,7 +9,7 @@ It provides a straightforward way to synchronize the database, themes, plugins e
 
 1. **Install the package** (once per machine):
    ```bash
-   wp package install kite-co/wp-sync
+   wp package install https://github.com/kite-co-code/wp-sync.git
    ```
 
 2. **Create a config file** in your project folder — this can be your WordPress root or your theme, as long as you run the command from there:
@@ -39,7 +39,7 @@ That's it. `pull` copies the chosen parts of the remote environment down to your
 Requires [WP-CLI](https://make.wordpress.org/cli/handbook/guides/installing/) and SSH access on every environment you sync. Install the package with:
 
 ```bash
-wp package install kite-co/wp-sync
+wp package install https://github.com/kite-co-code/wp-sync.git
 ```
 
 ## Configuration
