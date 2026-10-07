@@ -44,6 +44,16 @@ wp package install https://github.com/kite-co-code/wp-sync.git
 
 The package is also on [Packagist](https://packagist.org/packages/kite-co/wp-sync) as `kite-co/wp-sync`, but installing by name (`wp package install kite-co/wp-sync`) doesn't work in WP-CLI 2.12 or earlier. Use the git URL above until a newer WP-CLI release fixes this.
 
+### Upgrading from jerometoole/wp-sync
+The package has been renamed to `kite-co/wp-sync`. `wp package update` won't switch an existing install over, so uninstall the old package and install the new one:
+
+```bash
+wp package uninstall jerometoole/wp-sync
+wp package install https://github.com/kite-co-code/wp-sync.git
+```
+
+Your `wp-sync.yml` files and commands are unchanged.
+
 ## Configuration
 Your `wp-sync.yml` holds the settings for each command and the connection details for each environment. Run `wp sync` commands from the directory that contains it — your WordPress root or a theme.
 
