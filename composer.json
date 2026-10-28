@@ -1,6 +1,6 @@
 {
     "name": "kite-co/wp-sync",
-    "description": "Simple CLI migrations between WordPress environments",
+    "description": "Pull a live WordPress site to local in one command (database, plugins, themes, uploads), or push it back. WP-CLI package over SSH and rsync.",
 	"type": "wp-cli-package",
     "homepage": "https://github.com/kite-co-code/wp-sync",
     "license": "MIT",

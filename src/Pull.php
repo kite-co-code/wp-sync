@@ -399,7 +399,7 @@ class Pull
         if (isset($config['after_pull']) && is_array($config['after_pull'])) {
             \WP_CLI::line();
             \WP_CLI::log(\WP_CLI::colorize('%C━━━ Running After Pull Commands ━━━%n'));
-            \WpSync\Helpers::runCustomCommands($config['after_pull'], $skip_flag);
+            \WpSync\Helpers::runCustomCommands($config['after_pull'], '', $skip_flag);
         }
 
         \WP_CLI::line();

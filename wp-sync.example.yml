@@ -1,15 +1,15 @@
 pull:
   db: true
-  themes: true
+  themes: false
   plugins: true
   uploads: false
   db_backup_count: 3 # Number of backups to keep per environment
+  # before_pull runs `wp` commands on the remote site; after_pull runs them locally.
   # before_pull:
-  #   - "wp maintenance-mode activate"
+  #   - "wp cache flush"
   # after_pull:
   #   - "wp search-replace 'old-string' 'new-string'"
   #   - "wp plugin deactivate some-plugin"
-  #   - "wp maintenance-mode deactivate"
   # Multisite-specific example:
   # after_pull:
   #   - "wp search-replace 'staging-cdn.example.com' 'local-cdn.example.com' --network"
@@ -20,8 +20,11 @@ push:
   themes: false
   plugins: false
   uploads: false
+  # before_push and after_push both run `wp` commands on the remote site.
   # before_push:
+  #   - "wp maintenance-mode activate"
   # after_push:
+  #   - "wp maintenance-mode deactivate"
 
 environments:
   staging:

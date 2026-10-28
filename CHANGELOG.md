@@ -1,3 +1,13 @@
+## [Unreleased]
+
+### Changed
+- `wp sync init` no longer turns on `themes` in the generated `wp-sync.yml`.
+- Readme rewritten around what the package does, with sample output, a hooks table showing where each hook runs, and a push warning.
+- Added an MIT `LICENSE` file.
+
+### Fixed
+- `after_pull` WP-CLI commands were passed the skip flags in place of the SSH flag. They still ran locally, but now run without the duplicated flags.
+
 ## [v1.2.0] - 2026-10-07
 
 ### Changed

@@ -1,9 +1,77 @@
-# WP CLI Sync: Simple WordPress migrations from the command line
+# `wp sync`
 
-WP CLI Sync is a WP-CLI package designed for single-command CLI migrations between WordPress environments.
-It provides a straightforward way to synchronize the database, themes, plugins etc. between different environments.
+[![Packagist Version](https://img.shields.io/packagist/v/kite-co/wp-sync)](https://packagist.org/packages/kite-co/wp-sync)
+[![License](https://img.shields.io/packagist/l/kite-co/wp-sync)](LICENSE)
 
-[Quick start](#quick-start) | [Installation](#installation) | [Configuration](#configuration) | [Commands](#commands) | [Options](#options)
+**Pull a live WordPress site to your local machine in one command — database, plugins, themes and uploads. Push back when you need to.**
+
+```bash
+wp sync pull production
+```
+
+`wp sync` is a [WP-CLI](https://wp-cli.org/) package. It works over SSH and rsync, so there's no plugin to install on your sites — if you've used [WP Migrate](https://deliciousbrains.com/wp-migrate-db-pro/), it's the same idea from the command line. It also handles full migrations: pull a site from its old server, then push it to a fresh WordPress install on the new one.
+
+[Quick start](#quick-start) | [Installation](#installation) | [Configuration](#configuration) | [Commands](#commands) | [Options](#options) | [Hooks](#custom-command-hooks) | [Multisite](#wordpress-multisite)
+
+## What it does
+
+- **Copies the database** and rewrites URLs for the new domain automatically, multisite networks included.
+- **Backs up first.** The database about to be overwritten is saved locally before every sync.
+- **Copies files** — themes, plugins, mu-plugins and uploads — with rsync, honouring a `.deployignore` file.
+- **Skips the uploads download** if you like: local media can load straight from the remote site instead.
+- **Runs your own commands** before and after each sync, e.g. clear caches or toggle maintenance mode.
+- **Shows you the plan and asks before it touches anything.**
+
+## What it looks like
+
+```
+$ wp sync pull production
+
+━━━ Sync Configuration ━━━
+
+environment: production
+
+sync:
+  db: true ✓
+  themes: false ✗
+  plugins: true ✓
+  uploads: false ✗
+
+connection:
+  host: example-prod
+  path: /var/www/example.com
+
+━━━ Domain Configuration ━━━
+local_domain:  https://example.test
+remote_domain: https://example.com
+
+⚠️  This will overwrite your LOCAL environment
+   • Local database will be replaced with remote database
+   • Local plugins will be replaced with remote files
+   • This action cannot be undone without a backup
+
+Continue with pull from 'production' to 'local'? [y/n] y
+Backing up local database…
+Success: Database backup saved to wp-content/wp-sync-backups/wp_sync_backup_local_20261028_143000.sql
+
+━━━ Transferring Files ━━━
+• Syncing plugins folder...
+• Syncing mu-plugins folder...
+
+━━━ Syncing Database ━━━
+• Exporting database from production...
+• Importing database...
+• Search-replacing URLs...
+
+━━━ Configuring Remote Media Loading ━━━
+• Installing BE Media from Production plugin...
+Success: ✓ Configured media from remote: https://example.test -> https://example.com
+
+━━━ Finalizing Sync ━━━
+• Flushing rewrite rules...
+
+Success: 🎉 Pull from 'production' to 'local' completed successfully!
+```
 
 ## Quick start
 
@@ -28,47 +96,39 @@ It provides a straightforward way to synchronize the database, themes, plugins e
    ```
    Using an `~/.ssh/config` alias is recommended — see [Connecting to your environments](#connecting-to-your-environments).
 
-4. **Choose what to sync** in the `pull:` block (`db`, `themes`, `plugins`, `uploads`), check your settings are correct, then run:
+4. **Choose what to sync** in the `pull:` block (`db`, `themes`, `plugins`, `uploads` — all off unless you turn them on), then run:
    ```bash
    wp sync pull staging
    ```
+   You'll see a summary of what's about to happen and be asked to confirm.
 
-That's it. `pull` copies the chosen parts of the remote environment down to your local site, backing up your local database first by default. Use [`wp sync push`](#push) to go the other way.
+That's it. `pull` copies the chosen parts of the remote environment down to your local site, backing up your local database first. Use [`wp sync push`](#push) to go the other way.
 
 ## Installation
-Requires [WP-CLI](https://make.wordpress.org/cli/handbook/guides/installing/) and SSH access on every environment you sync. Install the package with:
+
+### Requirements
+
+- [WP-CLI](https://make.wordpress.org/cli/handbook/guides/installing/) on your machine and on every server you sync with
+- PHP 7.4 or later
+- SSH access to each server
+- `rsync` on your machine and the servers, for syncing files
+
+### Install
 
 ```bash
 wp package install https://github.com/kite-co-code/wp-sync.git
 ```
-
-The package is also on [Packagist](https://packagist.org/packages/kite-co/wp-sync) as `kite-co/wp-sync`, but installing by name (`wp package install kite-co/wp-sync`) doesn't work in WP-CLI 2.12 or earlier. Use the git URL above until a newer WP-CLI release fixes this.
-
-### Upgrading from jerometoole/wp-sync
-The package has been renamed to `kite-co/wp-sync`. `wp package update` won't switch an existing install over, so uninstall the old package and install the new one:
-
-```bash
-wp package uninstall jerometoole/wp-sync
-wp package install https://github.com/kite-co-code/wp-sync.git
-```
-
-Your `wp-sync.yml` files and commands are unchanged.
 
 ## Configuration
 Your `wp-sync.yml` holds the settings for each command and the connection details for each environment. Run `wp sync` commands from the directory that contains it — your WordPress root or a theme.
 
-Here's a complete example showing the defaults:
+Here's a typical config. Anything you leave out falls back to the defaults listed under [Options](#options).
 ```yaml
 # wp-sync.yml
 pull:
   db: true
-  themes: false
   plugins: true
-  uploads: false
-  db_backup: true
-  db_backup_count: 3
-  load_media_from_remote: true
-  search_replace_urls: true
+  uploads: false            # load_media_from_remote serves media from the remote site instead
   # Extra replacements, run straight after the domain replacement:
   # additional_search_replace:
   #   - search: "shop.example.com"
@@ -76,13 +136,7 @@ pull:
 
 push:
   db: false
-  themes: false
   plugins: true
-  uploads: false
-  db_backup: true
-  db_backup_count: 3
-  load_media_from_remote: false
-  search_replace_urls: true
 
 environments:
   local:
@@ -138,40 +192,50 @@ staging:
 
 Don't fold `port` into `host` (e.g. `user@host:2222`) — an embedded `:port` breaks file transfers. Set it as a separate `port` key. `path` (the remote WordPress root) is always required.
 
+### Excluding files
+If a `.deployignore` file exists in the directory you run `wp sync` from, it's passed to rsync as an exclude list (rsync `--exclude-from` patterns, one per line). Use it to skip things like caches or build artefacts:
+
+```
+node_modules
+.git
+cache/
+```
+
 ## Commands
 ### Pull
-`wp sync pull` synchronizes your WordPress environment from a specified environment.
+`wp sync pull <env> [options]` copies the chosen parts of `<env>` (e.g. `staging`, `production`) down to your local site.
 
-`wp sync pull <env> <options>`
-
-- `<env>`: The environment to sync from (e.g., staging, production).
-- `<options>`: The options to use for the sync. See [Options](#options) for more details.
-
-Here's an example using option flags:
+Options set on the command line override `wp-sync.yml`:
 ```bash
-wp sync pull staging --db=true --load_media_from_remote=true
+wp sync pull staging --db --uploads
 ```
 
 ### Push
-`wp sync push` synchronizes your local WordPress environment to a specified environment.
+`wp sync push <env> [options]` works the same way in the other direction: it copies your **local** site **up** to `<env>`.
 
-This command is used in the same way as the pull command, but synchronizes **from** your local environment **to** another environment.
-`wp sync push <env> <options>`
+> [!WARNING]
+> Push overwrites the remote site. `wp sync push production --db` replaces the live database with your local one, and any orders, comments or form entries made since your last pull are lost. A backup of the remote database is saved locally first (see [Database Backups](#database-backups)), but check the confirmation summary carefully before you say yes.
+
+For a full migration to a new server, install WordPress and WP-CLI there, add it as an environment, then `wp sync pull old-server` followed by `wp sync push new-server`.
 
 ### Options
-- `db`: Synchronize the database. Default: false.
-- `themes`: Synchronize themes. Default: false.
-- `plugins`: Synchronize plugins. Default: false.
-- `uploads`: Synchronize uploads. Default: false.
-- `db_backup`: Back up the database that is about to be overwritten before synchronizing. See [Database Backups](#database-backups). Default: true.
-- `db_backup_count`: Number of backups to keep per environment. Older backups are pruned automatically. Default: 3.
-- `load_media_from_remote`: Load media from the remote environment when synchronizing the database (using [be-media-from-production](https://github.com/billerickson/BE-Media-from-Production)). Default: true.
-- `search_replace_urls`: Detect the source and destination domains and search-replace them after a database sync. Set to false to handle domains yourself in an `after_pull` / `after_push` hook. Default: true.
-- `additional_search_replace`: A list of extra `search` / `replace` pairs to run straight after the domain replacement. Requires `search_replace_urls` to be true. See [WordPress Multisite](#wordpress-multisite). Default: none.
-- `yes`: Skip the confirmation prompt and run non-interactively. Useful for scripting, e.g. `wp sync pull production --yes && composer install && npm run build`. Default: false.
+Set these in the `pull:` / `push:` blocks of `wp-sync.yml`, inside an environment, or as flags on the command line. Turn a flag on with `--db` and off with `--no-db`.
+
+| Option | Default | Description |
+| --- | --- | --- |
+| `db` | `false` | Sync the database. |
+| `themes` | `false` | Sync `wp-content/themes`. |
+| `plugins` | `false` | Sync `wp-content/plugins` and `wp-content/mu-plugins`. |
+| `uploads` | `false` | Sync `wp-content/uploads`. |
+| `db_backup` | `true` | Back up the database that's about to be overwritten. See [Database Backups](#database-backups). |
+| `db_backup_count` | `3` | Backups to keep per environment. Older ones are pruned automatically. |
+| `load_media_from_remote` | `true` | After a database pull, load media from the remote site using [BE Media from Production](https://github.com/billerickson/BE-Media-from-Production), so you don't need to download uploads. |
+| `search_replace_urls` | `true` | Detect the source and destination domains and search-replace them after a database sync. Set to `false` to handle domains yourself in a [hook](#custom-command-hooks). |
+| `additional_search_replace` | none | Extra `search` / `replace` pairs to run straight after the domain replacement. Requires `search_replace_urls`. See [WordPress Multisite](#wordpress-multisite). |
+| `yes` | `false` | Skip the confirmation prompt, for scripting: `wp sync pull production --yes && composer install && npm run build`. |
 
 ### Database Backups
-When `db_backup` is enabled, WP CLI Sync backs up the database that is **about to be overwritten**, so you can restore if a sync goes wrong:
+When `db_backup` is enabled, `wp sync` backs up the database that is **about to be overwritten**, so you can restore if a sync goes wrong:
 
 - **Pull** backs up your **local** database.
 - **Push** backs up the **remote** database.
@@ -187,35 +251,37 @@ wp db import wp-content/wp-sync-backups/wp_sync_backup_local_20260721_143000.sql
 
 ## Custom Command Hooks
 
-WP CLI Sync supports running arbitrary commands at key points during sync operations. This allows you to perform custom tasks like additional search-replace operations, cache clearing, or maintenance mode activation.
+Run your own commands at key points in a sync — clear caches, deactivate plugins you don't want locally, or put a site into maintenance mode while it's being overwritten.
 
-### Hook Types
-- `before_pull` / `before_push`: Execute before sync operations begin
-- `after_pull` / `after_push`: Execute after sync operations complete
+### Where hooks run
 
-### Defining Hooks
-Commands can be defined at global (pull/push) or environment-specific levels:
+Commands starting with `wp ` are WP-CLI commands, run with `--skip-plugins --skip-themes`. Anything else runs as a shell command on your machine.
+
+| Hook | `wp` commands run on | Shell commands run on |
+| --- | --- | --- |
+| `before_pull` | remote | local |
+| `after_pull` | local | local |
+| `before_push` | remote | local |
+| `after_push` | remote | local |
+
+In short: `after_pull` works on the site you just pulled into; every other hook's `wp` commands work on the remote site.
+
+### Defining hooks
+Hooks can be set for every environment (in the `pull:` / `push:` blocks) or for one environment:
 
 ```yaml
 pull:
-  db: true
-  plugins: true
   after_pull:
-    - "wp search-replace 'old-string' 'new-string'"
+    - "wp plugin deactivate wordfence"
     - "wp cache flush"
 
 environments:
   staging:
-    before_pull:
+    before_push:
       - "wp maintenance-mode activate"
-    after_pull:
+    after_push:
       - "wp maintenance-mode deactivate"
 ```
-
-### Command Types
-- **WP-CLI commands**: Start with `wp ` and are executed with appropriate skip flags
-- **Shell commands**: Any other commands are executed as shell commands
-- **Remote execution**: Commands automatically run on remote server when using SSH
 
 ## WordPress Multisite
 
@@ -223,7 +289,7 @@ Multisite networks are detected automatically. Both subdomain and subdirectory n
 
 ### Setup
 
-Your local wp-config.php needs the usual multisite constants (`MULTISITE`, `SUBDOMAIN_INSTALL`, `DOMAIN_CURRENT_SITE` and friends) before wp-sync will treat the site as a network — it reads them to decide how to rewrite domains.
+Your local wp-config.php needs the usual multisite constants (`MULTISITE`, `SUBDOMAIN_INSTALL`, `DOMAIN_CURRENT_SITE` and friends) before `wp sync` will treat the site as a network — it reads them to decide how to rewrite domains.
 
 Subsites follow the main site. On a **subdomain network** `shop.example.com` becomes `shop.example.test`; on a **subdirectory network** every site shares the main domain, so there's nothing extra to do.
 
@@ -249,18 +315,17 @@ pull:
 ```
 
 ## Contributing
-Contributions are welcome. Please feel free to submit pull requests or raise issues on the GitHub repository.
-It might take me a while to respond, but I'll do my best to get back to you.
+Contributions are welcome — please open an issue or pull request on [GitHub](https://github.com/kite-co-code/wp-sync). See the [changelog](CHANGELOG.md) for release history.
 
 ## License
-WP CLI Sync is open-sourced software licensed under the MIT license.
+`wp sync` is open-source software licensed under the [MIT license](LICENSE).
 
 ## Author
-Jerome Toole
+Jerome Toole ([Kite Co.](https://github.com/kite-co-code))
 
 ## Credits
-Thanks to [maneuver-agency/wp-cli-sync](https://github.com/maneuver-agency/wp-cli-sync) which I referenced while building this package.
+Thanks to [maneuver-agency/wp-cli-sync](https://github.com/maneuver-agency/wp-cli-sync), which I referenced while building this package.
 
-Thanks to Bill Erickson's [be-media-from-production](https://github.com/billerickson/BE-Media-from-Production) for powering the load_media_from_remote option.
+Thanks to Bill Erickson's [BE Media from Production](https://github.com/billerickson/BE-Media-from-Production) for powering the `load_media_from_remote` option.
 
 Thanks to [WP Migrate](https://deliciousbrains.com/wp-migrate-db-pro/) for providing the motivation.
