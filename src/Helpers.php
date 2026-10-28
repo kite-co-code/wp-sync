@@ -217,8 +217,16 @@ class Helpers
             return;
         }
 
-        // Collations referenced by the dump (streamed via grep so large dumps stay off the PHP heap).
-        $grep = 'grep -oiE ' . escapeshellarg('COLLATE[ =]+`?[a-z0-9_]+') . ' ' . escapeshellarg($dump_file);
+        // Lines holding row data, which must never be read or rewritten: content like
+        // "collate the" is not a collation. MySQL's mysqldump puts each row batch on one
+        // `INSERT INTO ... VALUES (...),(...);` line; MariaDB 11+'s mariadb-dump puts
+        // `INSERT INTO ... VALUES` on its own line, then one `(...)` row per line.
+        $row_data_line = '^(INSERT |REPLACE |\()';
+
+        // Collations referenced by the dump's schema (streamed via grep so large dumps stay
+        // off the PHP heap). Collation names are always <charset>_<suffix>, so require the underscore.
+        $grep = 'grep -vE ' . escapeshellarg($row_data_line) . ' ' . escapeshellarg($dump_file)
+            . ' | grep -oiE ' . escapeshellarg('COLLATE[ =]+`?[a-z0-9]+_[a-z0-9_]+');
         exec($grep, $grep_lines);
 
         $dump_collations = [];
@@ -283,14 +291,15 @@ class Helpers
         }
 
         // Apply via streamed sed (portable across GNU/BSD; tokens are word-chars only).
+        // Skip row data lines so content is never touched, and match whole names only.
         $sed_exprs = '';
         foreach ($replacements as $from => $to) {
             \WP_CLI::log(\WP_CLI::colorize("%C•%n Remapping unsupported collation: %Y$from%n %B->%n %G$to%n"));
-            $sed_exprs .= ' -e ' . escapeshellarg("s/{$from}/{$to}/g");
+            $sed_exprs .= ' -e ' . escapeshellarg("/{$row_data_line}/!s/(^|[^a-zA-Z0-9_]){$from}([^a-zA-Z0-9_]|$)/\\1{$to}\\2/g");
         }
 
         $tmp = $dump_file . '.collations.tmp';
-        $sed = 'sed' . $sed_exprs . ' ' . escapeshellarg($dump_file)
+        $sed = 'sed -E' . $sed_exprs . ' ' . escapeshellarg($dump_file)
             . ' > ' . escapeshellarg($tmp)
             . ' && mv ' . escapeshellarg($tmp) . ' ' . escapeshellarg($dump_file);
         exec($sed, $sed_out, $sed_code);

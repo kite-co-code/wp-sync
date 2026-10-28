@@ -4,3 +4,4 @@ vendor/
 composer.lock
 CLAUDE.md
 .plans/
+.phpunit.result.cache
