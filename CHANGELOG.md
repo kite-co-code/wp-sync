@@ -1,4 +1,4 @@
-## [Unreleased]
+## [v1.3.0] - 2026-10-28
 
 ### Changed
 - `wp sync init` no longer turns on `themes` in the generated `wp-sync.yml`.
