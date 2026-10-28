@@ -3,5 +3,7 @@ node_modules/
 vendor/
 composer.lock
 CLAUDE.md
+AGENTS.md
+.claude/
 .plans/
 .phpunit.result.cache
