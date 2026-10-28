@@ -4,6 +4,17 @@ namespace WpSync;
 
 class Helpers
 {
+    private const BOOLEAN_OPTIONS = [
+        'db',
+        'themes',
+        'plugins',
+        'uploads',
+        'db_backup',
+        'load_media_from_remote',
+        'search_replace_urls',
+        'verbose',
+    ];
+
     public static function array_merge_deep(array $array1, array $array2): array
     {
         $merged = $array1;
@@ -66,14 +77,19 @@ class Helpers
             }
         }
 
-        // Handle boolean CLI flags (like --verbose)
-        if (isset($assoc_args['verbose'])) {
-            $config['verbose'] = true;
-            unset($assoc_args['verbose']);
-        }
-
         // Merge remaining CLI flags with config
         $config = array_merge($config, $assoc_args);
+
+        // WP-CLI passes flag values as strings, and "false" is truthy in PHP.
+        foreach (self::BOOLEAN_OPTIONS as $key) {
+            if (isset($config[$key]) && !is_bool($config[$key])) {
+                $value = filter_var($config[$key], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+                if ($value === null) {
+                    \WP_CLI::error("'$key' must be true or false (also accepted: yes/no, 1/0, on/off), got '{$config[$key]}'.");
+                }
+                $config[$key] = $value;
+            }
+        }
 
         return $config;
     }
@@ -307,6 +323,35 @@ class Helpers
         if ($sed_code !== 0) {
             @unlink($tmp);
             \WP_CLI::warning('Could not remap dump collations; importing original dump.');
+        }
+    }
+
+    /**
+     * Stream a local SQL dump into `wp db import` on the remote over SSH.
+     *
+     * @param array  $config    Merged config; uses host, path and optional port.
+     * @param string $dump_file Path to the local SQL dump.
+     * @param string $skip_flag Skip flags passed to the remote wp command.
+     */
+    public static function importDumpOverSsh(array $config, string $dump_file, string $skip_flag)
+    {
+        $remote_command = 'cd ' . escapeshellarg($config['path']) . " && wp db import - $skip_flag";
+
+        $cmd = 'ssh';
+        if (!empty($config['port'])) {
+            $cmd .= ' -p ' . escapeshellarg((string) $config['port']);
+        }
+        $cmd .= ' ' . escapeshellarg($config['host'])
+            . ' ' . escapeshellarg($remote_command)
+            . ' < ' . escapeshellarg($dump_file) . ' 2>&1';
+
+        exec($cmd, $output, $exit_code);
+
+        if ($exit_code !== 0) {
+            \WP_CLI::error(
+                "Database import on the remote failed (exit code $exit_code). The local dump was left at $dump_file.\n"
+                . implode("\n", $output)
+            );
         }
     }
 

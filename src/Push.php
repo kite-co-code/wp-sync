@@ -89,15 +89,6 @@ class Push
             }
         }
 
-        // String for non-wp-cli ssh commands
-        $ssh_command = "ssh {$config['host']}";
-
-        if (isset($config['port'])) {
-            $ssh_command .= " -p {$config['port']}";
-        }
-
-        $ssh_command .= " 'cd {$config['path']} && "; // TODO check if path should be optional
-
         $ssh_flag_parts = [
             'host' => $config['host'],
             'port' => null,
@@ -284,7 +275,7 @@ class Push
 
             // Stream the local dump into the remote import over SSH.
             \WP_CLI::log("• Importing database into $env...");
-            exec("$ssh_command wp db import - $skip_flag' < \"$db_sync_file\"");
+            \WpSync\Helpers::importDumpOverSsh($config, $db_sync_file, $skip_flag);
 
             // Remove temporary sync file
             unlink($db_sync_file);

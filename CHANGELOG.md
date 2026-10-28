@@ -6,6 +6,9 @@
 - Added an MIT `LICENSE` file.
 
 ### Fixed
+- `--db=false` and other `=false` CLI flags were read as true, so `wp sync push production --db=false` still overwrote the remote database. Boolean options now accept true/false, yes/no, 1/0 or on/off, and any other value stops the sync with an error. `--search_replace_urls=true` and `--verbose=false` now work too.
+- A failed database import on push was ignored: the push carried on to search-replace and reported success. It now stops with the remote's error output.
+- Database syncs could corrupt content when the collation fix ran ([#6](https://github.com/kite-co-code/wp-sync/issues/6)): text like "collate the" was read as a collation, and every "the" in the dump was rewritten, breaking serialized data such as user roles. Collations are now only read and rewritten in table definitions, never in row data, for both MySQL and MariaDB dump formats.
 - `after_pull` WP-CLI commands were passed the skip flags in place of the SSH flag. They still ran locally, but now run without the duplicated flags.
 
 ## [v1.2.0] - 2026-10-07
